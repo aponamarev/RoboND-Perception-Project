@@ -122,7 +122,7 @@ def pcl_callback(pcl_msg):
 
     # Euclidean Clustering
     # Convert XYZRGB to XYZ
-    white_cloud = XYZRGB_to_XYZ(extracted_outliers)
+    white_cloud = XYZRGB_to_XYZ(objects)
     # Create k-d tree
     # https://classroom.udacity.com/nanodegrees/nd209/parts/c199593e-1e9a-4830-8e29-2c86f70f489e/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/2cc29bbd-5c51-4c3e-b238-1282e4f24f42/concepts/aff79804-e31d-468e-9f12-03536a1b16dc
     # The k-d tree data structure is used in the Euclidian Clustering algorithm to decrease the computational
@@ -135,6 +135,7 @@ def pcl_callback(pcl_msg):
     # as well as minimum and maximum cluster size (in points)
     ec.set_MinClusterSize(50)
     ec.set_MaxClusterSize(10000)
+    ec.set_SearchMethod(tree)
     # Extract indices for each of the discovered clusters
     cluster_indices = ec.Extract()
 
@@ -173,7 +174,7 @@ def pcl_callback(pcl_msg):
     for index, pts_list in enumerate(cluster_indices):
 
         # Grab the points for the cluster
-        pcl_cluster = extracted_outliers.extract(pts_list)
+        pcl_cluster = objects.extract(pts_list)
         ros_cluster = pcl_to_ros(pcl_cluster)
 
         # Compute the associated feature vector
