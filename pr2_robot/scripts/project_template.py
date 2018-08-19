@@ -122,7 +122,7 @@ def pcl_callback(pcl_msg):
 
     # Euclidean Clustering
     # Convert XYZRGB to XYZ
-    white_cloud = XYZRGB_to_XYZ(extracted_outliers)
+    white_cloud = XYZRGB_to_XYZ(objects)
     # Create k-d tree
     # https://classroom.udacity.com/nanodegrees/nd209/parts/c199593e-1e9a-4830-8e29-2c86f70f489e/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/2cc29bbd-5c51-4c3e-b238-1282e4f24f42/concepts/aff79804-e31d-468e-9f12-03536a1b16dc
     # The k-d tree data structure is used in the Euclidian Clustering algorithm to decrease the computational
@@ -135,6 +135,7 @@ def pcl_callback(pcl_msg):
     # as well as minimum and maximum cluster size (in points)
     ec.set_MinClusterSize(50)
     ec.set_MaxClusterSize(10000)
+    ec.set_SearchMethod(tree)
     # Extract indices for each of the discovered clusters
     cluster_indices = ec.Extract()
 
@@ -173,7 +174,7 @@ def pcl_callback(pcl_msg):
     for index, pts_list in enumerate(cluster_indices):
 
         # Grab the points for the cluster
-        pcl_cluster = extracted_outliers.extract(pts_list)
+        pcl_cluster = objects.extract(pts_list)
         ros_cluster = pcl_to_ros(pcl_cluster)
 
         # Compute the associated feature vector
@@ -206,7 +207,7 @@ def pcl_callback(pcl_msg):
     # Could add some logic to determine whether or not your object detections are robust
     # before calling pr2_mover()
     try:
-        pr2_mover(detected_objects_list)
+        pr2_mover(detected_objects)
     except rospy.ROSInterruptException:
         pass
 
@@ -214,31 +215,26 @@ def pcl_callback(pcl_msg):
 def pr2_mover(object_list):
 
     # Initialize variables
-    TEST_SCENE_NUM = std_msgs.msg.Int32()
-    OBJECT_NAME = std_msgs.msg.String()
-    WHICH_ARM = std_msgs.msg.String()  # green = right, red = left
-    PICK_POSE = geometry_msgs.msg.Pose()
-    PLACE_POSE = geometry_msgs.msg.Pose()
-    centroid = []
-    counter = 0
+    test_scene_num = std_msgs.msg.Int32()
+    object_name = std_msgs.msg.String()
+    arm_name = std_msgs.msg.String()  # green = right, red = left
+    pick_pose = geometry_msgs.msg.Pose()
+    place_pose = geometry_msgs.msg.Pose()
     output_yaml = []
 
-    TEST_SCENE_NUM.data = 3
+    test_scene_num.data = 1
 
     # Get/Read parameters
     object_list_param = rospy.get_param('/object_list')
     rospy.loginfo('Starting pr2_mover with {} objects'.format(len(object_list)))
 
-    # TODO: Parse parameters into individual variables
-
-    # TODO: Rotate PR2 in place to capture side tables for the collision map
-
-    for target in object_list_param:
-        OBJECT_NAME.data = object_list_param[counter]['name']
+    # Parse parameters into individual variables
+    for counter in range(list(object_list_param)):
+        object_name.data = object_list_param[counter]['name']
         found = False
         # Get the PointCloud for a given object and obtain it's centroid
         for detected in object_list:
-            if (OBJECT_NAME.data == detected.label):
+            if (object_name.data == detected.label):
                 points_arr = ros_to_pcl(detected.cloud).to_array()
                 centroids = (np.mean(points_arr, axis=0)[:3])
                 found = True
@@ -246,23 +242,23 @@ def pr2_mover(object_list):
         if (found):
 
             # Create 'place_pose' for the object
-            PICK_POSE.position.x = float(centroids[0])
-            PICK_POSE.position.y = float(centroids[1])
-            PICK_POSE.position.z = float(centroids[2])
+            pick_pose.position.x = float(centroids[0])
+            pick_pose.position.y = float(centroids[1])
+            pick_pose.position.z = float(centroids[2])
 
             # Assign the arm to be used for pick_place
-            PLACE_POSE.position.x = 0.0
-            PLACE_POSE.position.z = 0.8
+            place_pose.position.x = 0.0
+            place_pose.position.z = 0.8
 
             if (object_list_param[counter]['group'] == "red"):
-                WHICH_ARM.data = "left"
-                PLACE_POSE.position.y = 0.71
+                arm_name.data = "left"
+                place_pose.position.y = 0.71
             else:
-                WHICH_ARM.data = "right"
-                PLACE_POSE.position.y = -0.71
+                arm_name.data = "right"
+                place_pose.position.y = -0.71
 
             # Create a list of dictionaries (made with make_yaml_dict()) for later output to yaml format
-            yaml_dict = make_yaml_dict(TEST_SCENE_NUM, WHICH_ARM, OBJECT_NAME, PICK_POSE, PLACE_POSE)
+            yaml_dict = make_yaml_dict(test_scene_num, arm_name, object_name, pick_pose, place_pose)
             output_yaml.append(yaml_dict)
 
             # Wait for 'pick_place_routine' service to come up
@@ -272,7 +268,7 @@ def pr2_mover(object_list):
                 pick_place_routine = rospy.ServiceProxy('pick_place_routine', PickPlace)
 
                 # Insert your message variables to be sent as a service request
-                resp = pick_place_routine(TEST_SCENE_NUM, OBJECT_NAME, WHICH_ARM, PICK_POSE, PLACE_POSE)
+                resp = pick_place_routine(test_scene_num, object_name, arm_name, pick_pose, place_pose)
                 print ("Response: ",resp.success)
 
             except rospy.ServiceException, e:
@@ -280,10 +276,8 @@ def pr2_mover(object_list):
         else:
             rospy.loginfo('Can\'t Find Object: {}'.format(object_list_param[counter]['name']))
 
-        counter += 1
-
     # Output your request parameters into output yaml file
-    send_to_yaml("output_" + str(TEST_SCENE_NUM.data) + ".yaml", output_yaml)
+    send_to_yaml("output_" + str(test_scene_num.data) + ".yaml", output_yaml)
 
 if __name__ == '__main__':
 
