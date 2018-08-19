@@ -220,7 +220,6 @@ def pr2_mover(object_list):
     arm_name = std_msgs.msg.String()  # green = right, red = left
     pick_pose = geometry_msgs.msg.Pose()
     place_pose = geometry_msgs.msg.Pose()
-    centroid = []
     output_yaml = []
 
     test_scene_num.data = 1
