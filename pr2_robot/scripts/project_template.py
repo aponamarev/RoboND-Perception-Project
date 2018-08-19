@@ -293,7 +293,7 @@ if __name__ == '__main__':
     pcl_clusters_pub = rospy.Publisher("/pcl_clusters", PointCloud2, queue_size=1)
 
     # Load Model From disk
-    model = pickle.load(open('model.sav', 'rb'))
+    model = pickle.load(open('model_w1.sav', 'rb'))
     clf = model['classifier']
     encoder = LabelEncoder()
     encoder.classes_ = model['classes']
