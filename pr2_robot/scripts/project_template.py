@@ -50,7 +50,7 @@ def send_to_yaml(yaml_filename, dict_list):
 def pcl_callback(pcl_msg):
 
     # Convert ROS msg to PCL data
-    pcd = ros_to_pcl(ros_pcl_msg)
+    pcd = ros_to_pcl(pcl_msg)
     
     # Statistical Outlier Filtering
     # create filter
