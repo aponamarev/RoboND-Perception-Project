@@ -63,7 +63,7 @@ def pcl_callback(pcl_msg):
     x = 1.0
     outlier_filter.set_std_dev_mul_thresh(x)
     # create filter
-    outlier_filter = outlier_filter.make_statistical_outlier_filter()
+    outlier_filter = outlier_filter.filter()
 
     # Voxel Grid Downsampling
     # create filter
