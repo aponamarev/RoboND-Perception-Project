@@ -229,7 +229,7 @@ def pr2_mover(object_list):
     rospy.loginfo('Starting pr2_mover with {} objects'.format(len(object_list)))
 
     # Parse parameters into individual variables
-    for counter in range(list(object_list_param)):
+    for counter in range(len(object_list_param)):
         object_name.data = object_list_param[counter]['name']
         found = False
         # Get the PointCloud for a given object and obtain it's centroid
