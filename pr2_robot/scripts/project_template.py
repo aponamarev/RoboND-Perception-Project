@@ -48,13 +48,47 @@ def send_to_yaml(yaml_filename, dict_list):
 
 # Callback function for your Point Cloud Subscriber
 def pcl_callback(pcl_msg):
-
     # Convert ROS msg to PCL data
     pcd = ros_to_pcl(pcl_msg)
-    
+
+    # Voxel Grid Downsampling
+    # create filter
+    vox = pcd.make_voxel_grid_filter()
+    # apply leaf size
+    # A voxel grid filter allows you to downsample the data by taking a spatial average of the points in the cloud
+    # confined by each voxel.
+    # Size is specified for each axis (3D data), with units in meters (1 == 1 meter).
+    LEAF_SIZE = 0.005
+    vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
+    # extract downsampled data
+    cloud_filtered = vox.filter()
+
+    # PassThrough Filter
+    # PassTrhough Filter works as a cut function. If you have a known location of the object, you can cut that object
+    # and disregard the rest of the points.
+    # create filter
+    passthrough = cloud_filtered.make_passthrough_filter()
+    # Pass through z axis - specify axis and the range
+    filter_axis = 'z'
+    axis_min = 0.77
+    axis_max = 5.0
+    passthrough.set_filter_field_name(filter_axis)
+    passthrough.set_filter_limits(axis_min, axis_max)
+    # filter out points
+    cloud_filtered = passthrough.filter()
+    # Pass through x axis - specify axis and the range
+    passthrough = cloud_filtered.make_passthrough_filter()
+    filter_axis = 'x'
+    axis_min = -1.0
+    axis_max = 1.0
+    passthrough.set_filter_field_name(filter_axis)
+    passthrough.set_filter_limits(axis_min, axis_max)
+    # filter out points
+    cloud_filtered = passthrough.filter()
+
     # Statistical Outlier Filtering
     # create filter
-    outlier_filter = pcd.make_statistical_outlier_filter()
+    outlier_filter = cloud_filtered.make_statistical_outlier_filter()
     # set number of neighbors used to evaluate point distance from the neighborhood mean
     outlier_filter.set_mean_k(50)
     # set threshold factor - the multiplier of the global standard deviation. Every point, who's distance from the
@@ -65,42 +99,6 @@ def pcl_callback(pcl_msg):
     # create filter
     outlier_filter = outlier_filter.filter()
 
-    # Voxel Grid Downsampling
-    # create filter
-    vox = outlier_filter.make_voxel_grid_filter()
-    # apply leaf size
-    # A voxel grid filter allows you to downsample the data by taking a spatial average of the points in the cloud
-    # confined by each voxel.
-    # Size is specified for each axis (3D data), with units in meters (1 == 1 meter).
-    LEAF_SIZE = 0.005
-    vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
-    # extract downsampled data
-    cloud_filtered = vox.filter()
-
-
-    # PassThrough Filter
-    # PassTrhough Filter works as a cut function. If you have a known location of the object, you can cut that object
-    # and disregard the rest of the points.
-    # create filter
-    passthrough = cloud_filtered.make_passthrough_filter()
-    # Pass through z axis - specify axis and the range
-    filter_axis = 'z'
-    axis_min = 0.3
-    axis_max = 5.0
-    passthrough.set_filter_field_name(filter_axis)
-    passthrough.set_filter_limits(axis_min, axis_max)
-    # filter out points
-    cloud_filtered = passthrough.filter()
-    # Pass through x axis - specify axis and the range
-    passthrough = cloud_filtered.make_passthrough_filter()
-    filter_axis = 'x'
-    axis_min = 0.34
-    axis_max = 1.0
-    passthrough.set_filter_field_name(filter_axis)
-    passthrough.set_filter_limits(axis_min, axis_max)
-    # filter out points
-    cloud_filtered = passthrough.filter()
-
     # RANSAC Plane Segmentation
     # create a segmentation filter
     seg = cloud_filtered.make_segmenter()
@@ -109,7 +107,7 @@ def pcl_callback(pcl_msg):
     # set segmentation method
     seg.set_method_type(pcl.SAC_RANSAC)
     # set point threshold to be considered an outlier
-    max_distance = 0.006
+    max_distance = 0.01
     seg.set_distance_threshold(max_distance)
     # obtain model coefficients and inlier indices
     inliers, coefficients = seg.segment()
@@ -121,7 +119,6 @@ def pcl_callback(pcl_msg):
     objects = cloud_filtered.extract(inliers, negative=True)
 
     # Euclidean Clustering
-    # Convert XYZRGB to XYZ
     white_cloud = XYZRGB_to_XYZ(objects)
     # Create k-d tree
     # https://classroom.udacity.com/nanodegrees/nd209/parts/c199593e-1e9a-4830-8e29-2c86f70f489e/modules/e5bfcfbd-3f7d-43fe-8248-0c65d910345a/lessons/2cc29bbd-5c51-4c3e-b238-1282e4f24f42/concepts/aff79804-e31d-468e-9f12-03536a1b16dc
@@ -131,7 +128,7 @@ def pcl_callback(pcl_msg):
     # Create a cluster extraction object
     ec = white_cloud.make_EuclideanClusterExtraction()
     # Set tolerances for distance threshold
-    ec.set_ClusterTolerance(0.001)
+    ec.set_ClusterTolerance(0.06)
     # as well as minimum and maximum cluster size (in points)
     ec.set_MinClusterSize(50)
     ec.set_MaxClusterSize(10000)
@@ -166,13 +163,11 @@ def pcl_callback(pcl_msg):
     pcl_table_pub.publish(table_pcl_msg)
     pcl_clusters_pub.publish(ros_cluster_cloud)
 
-
     # Classify the clusters! (loop through each detected cluster one at a time)
     detected_objects_labels = []
     detected_objects = []
 
     for index, pts_list in enumerate(cluster_indices):
-
         # Grab the points for the cluster
         pcl_cluster = objects.extract(pts_list)
         ros_cluster = pcl_to_ros(pcl_cluster)
@@ -190,7 +185,7 @@ def pcl_callback(pcl_msg):
 
         # Publish a label into RViz
         label_pos = list(white_cloud[pts_list[0]])
-        label_pos[2] += .25
+        label_pos[2] += .4
 
         object_markers_pub.publish(make_label(label, label_pos, index))
 
@@ -200,6 +195,7 @@ def pcl_callback(pcl_msg):
         do.cloud = ros_cluster
         detected_objects.append(do)
 
+    rospy.loginfo('Detected {} objects: {}'.format(len(detected_objects_labels), detected_objects_labels))
     # Publish the list of detected objects
     detected_objects_pub.publish(detected_objects)
 
