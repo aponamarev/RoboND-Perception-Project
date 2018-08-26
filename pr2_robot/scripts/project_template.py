@@ -58,7 +58,7 @@ def pcl_callback(pcl_msg):
     # A voxel grid filter allows you to downsample the data by taking a spatial average of the points in the cloud
     # confined by each voxel.
     # Size is specified for each axis (3D data), with units in meters (1 == 1 meter).
-    LEAF_SIZE = 0.01
+    LEAF_SIZE = 0.005
     vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
     # extract downsampled data
     cloud_filtered = vox.filter()
@@ -68,9 +68,9 @@ def pcl_callback(pcl_msg):
     # create filter
     passthrough = cloud_filtered.make_passthrough_filter()
     # Pass through z axis - specify axis and the range
-    filter_axis = 'z'
-    axis_min = -1.0
-    axis_max = 2.0
+    filter_axis = 'y'
+    axis_min = -0.4
+    axis_max = 0.4
     passthrough.set_filter_field_name(filter_axis)
     passthrough.set_filter_limits(axis_min, axis_max)
     # filter out points
@@ -78,8 +78,8 @@ def pcl_callback(pcl_msg):
     # Pass through x axis - specify axis and the range
     passthrough = cloud_filtered.make_passthrough_filter()
     filter_axis = 'x'
-    axis_min = -1.0
-    axis_max = 1.0
+    axis_min = 0.30
+    axis_max = 0.80
     passthrough.set_filter_field_name(filter_axis)
     passthrough.set_filter_limits(axis_min, axis_max)
     # filter out points
