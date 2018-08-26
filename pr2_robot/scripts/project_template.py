@@ -58,11 +58,10 @@ def pcl_callback(pcl_msg):
     # A voxel grid filter allows you to downsample the data by taking a spatial average of the points in the cloud
     # confined by each voxel.
     # Size is specified for each axis (3D data), with units in meters (1 == 1 meter).
-    LEAF_SIZE = 0.005
+    LEAF_SIZE = 0.01
     vox.set_leaf_size(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE)
     # extract downsampled data
     cloud_filtered = vox.filter()
-
     # PassThrough Filter
     # PassTrhough Filter works as a cut function. If you have a known location of the object, you can cut that object
     # and disregard the rest of the points.
@@ -70,8 +69,8 @@ def pcl_callback(pcl_msg):
     passthrough = cloud_filtered.make_passthrough_filter()
     # Pass through z axis - specify axis and the range
     filter_axis = 'z'
-    axis_min = 0.77
-    axis_max = 5.0
+    axis_min = -1.0
+    axis_max = 2.0
     passthrough.set_filter_field_name(filter_axis)
     passthrough.set_filter_limits(axis_min, axis_max)
     # filter out points
@@ -84,39 +83,37 @@ def pcl_callback(pcl_msg):
     passthrough.set_filter_field_name(filter_axis)
     passthrough.set_filter_limits(axis_min, axis_max)
     # filter out points
-    cloud_filtered = passthrough.filter()
-
+    cut_points = passthrough.filter()
     # Statistical Outlier Filtering
     # create filter
-    outlier_filter = cloud_filtered.make_statistical_outlier_filter()
+    outlier_filter = cut_points.make_statistical_outlier_filter()
     # set number of neighbors used to evaluate point distance from the neighborhood mean
-    outlier_filter.set_mean_k(50)
+    outlier_filter.set_mean_k(20)
     # set threshold factor - the multiplier of the global standard deviation. Every point, who's distance from the
     # neighbourhood mean is greater than distance specified by global mean and standard deviation (scaled by the
     # multiplier), considered to be an outlier and is removed from the data
     x = 1.0
     outlier_filter.set_std_dev_mul_thresh(x)
     # create filter
-    outlier_filter = outlier_filter.filter()
-
+    filtered_points = outlier_filter.filter()
     # RANSAC Plane Segmentation
     # create a segmentation filter
-    seg = cloud_filtered.make_segmenter()
+    seg = filtered_points.make_segmenter()
     # set the model
     seg.set_model_type(pcl.SACMODEL_PLANE)
     # set segmentation method
     seg.set_method_type(pcl.SAC_RANSAC)
     # set point threshold to be considered an outlier
-    max_distance = 0.01
+    max_distance = 1.0
     seg.set_distance_threshold(max_distance)
     # obtain model coefficients and inlier indices
     inliers, coefficients = seg.segment()
 
     # Extract inliers and outliers
     # inliers (table)
-    table = cloud_filtered.extract(inliers, negative=False)
+    table = filtered_points.extract(inliers, negative=False)
     # outliers (objects)
-    objects = cloud_filtered.extract(inliers, negative=True)
+    objects = filtered_points.extract(inliers, negative=True)
 
     # Euclidean Clustering
     white_cloud = XYZRGB_to_XYZ(objects)
@@ -128,9 +125,9 @@ def pcl_callback(pcl_msg):
     # Create a cluster extraction object
     ec = white_cloud.make_EuclideanClusterExtraction()
     # Set tolerances for distance threshold
-    ec.set_ClusterTolerance(0.06)
+    ec.set_ClusterTolerance(0.1)#0.06
     # as well as minimum and maximum cluster size (in points)
-    ec.set_MinClusterSize(50)
+    ec.set_MinClusterSize(10)
     ec.set_MaxClusterSize(10000)
     ec.set_SearchMethod(tree)
     # Extract indices for each of the discovered clusters
@@ -154,11 +151,13 @@ def pcl_callback(pcl_msg):
     cluster_cloud.from_list(color_cluster_point_list)
 
     # Convert PCL data to ROS messages
+    filtered_points_pcl_msg = pcl_to_ros(cut_points)
     table_pcl_msg = pcl_to_ros(table)
     objects_pcl_msg = pcl_to_ros(objects)
     ros_cluster_cloud = pcl_to_ros(cluster_cloud)
 
     # Publish ROS messages
+    pcl_filtered_points_pub.publish(filtered_points_pcl_msg)
     pcl_objects_pub.publish(objects_pcl_msg)
     pcl_table_pub.publish(table_pcl_msg)
     pcl_clusters_pub.publish(ros_cluster_cloud)
@@ -284,9 +283,10 @@ if __name__ == '__main__':
     # Create Publishers
     object_markers_pub = rospy.Publisher("/object_markers", Marker, queue_size=10)
     detected_objects_pub = rospy.Publisher("/detected_objects", DetectedObjectsArray, queue_size=10)
-    pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=1)
-    pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=1)
-    pcl_clusters_pub = rospy.Publisher("/pcl_clusters", PointCloud2, queue_size=1)
+    pcl_filtered_points_pub = rospy.Publisher("/pcl_filtered_points", PointCloud2, queue_size=3)
+    pcl_objects_pub = rospy.Publisher("/pcl_objects", PointCloud2, queue_size=3)
+    pcl_table_pub = rospy.Publisher("/pcl_table", PointCloud2, queue_size=3)
+    pcl_clusters_pub = rospy.Publisher("/pcl_clusters", PointCloud2, queue_size=3)
 
     # Load Model From disk
     model = pickle.load(open('model_w1.sav', 'rb'))
